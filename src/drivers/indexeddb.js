@@ -984,12 +984,20 @@ function dropInstance(options, callback) {
                 const dropDBPromise = new Promise((resolve, reject) => {
                     var req = idb.deleteDatabase(options.name);
 
-                    req.onerror = req.onblocked = err => {
+                    req.onerror = () => {
                         const db = req.result;
                         if (db) {
                             db.close();
                         }
-                        reject(err);
+                        reject(req.error);
+                    };
+
+                    req.onblocked = () => {
+                        reject(
+                            new Error(
+                                'Unable to drop instance because it is currently in use.'
+                            )
+                        );
                     };
 
                     req.onsuccess = () => {
