@@ -90,7 +90,7 @@ var REJECTED = ['REJECTED'];
 var FULFILLED = ['FULFILLED'];
 var PENDING = ['PENDING'];
 
-module.exports = exports = Promise;
+module.exports = Promise;
 
 function Promise(resolver) {
   if (typeof resolver !== 'function') {
@@ -196,7 +196,7 @@ handlers.reject = function (self, error) {
 function getThen(obj) {
   // Make sure we only access the accessor once as required by the spec
   var then = obj && obj.then;
-  if (obj && typeof obj === 'object' && typeof then === 'function') {
+  if (obj && (typeof obj === 'object' || typeof obj === 'function') && typeof then === 'function') {
     return function appyThen() {
       then.apply(obj, arguments);
     };
@@ -244,7 +244,7 @@ function tryCatch(func, value) {
   return out;
 }
 
-exports.resolve = resolve;
+Promise.resolve = resolve;
 function resolve(value) {
   if (value instanceof this) {
     return value;
@@ -252,13 +252,13 @@ function resolve(value) {
   return handlers.resolve(new this(INTERNAL), value);
 }
 
-exports.reject = reject;
+Promise.reject = reject;
 function reject(reason) {
   var promise = new this(INTERNAL);
   return handlers.reject(promise, reason);
 }
 
-exports.all = all;
+Promise.all = all;
 function all(iterable) {
   var self = this;
   if (Object.prototype.toString.call(iterable) !== '[object Array]') {
@@ -297,7 +297,7 @@ function all(iterable) {
   }
 }
 
-exports.race = race;
+Promise.race = race;
 function race(iterable) {
   var self = this;
   if (Object.prototype.toString.call(iterable) !== '[object Array]') {
@@ -1322,12 +1322,16 @@ function dropInstance(options, callback) {
                 var dropDBPromise = new Promise$1(function (resolve, reject) {
                     var req = idb.deleteDatabase(options.name);
 
-                    req.onerror = req.onblocked = function (err) {
+                    req.onerror = function () {
                         var db = req.result;
                         if (db) {
                             db.close();
                         }
-                        reject(err);
+                        reject(req.error);
+                    };
+
+                    req.onblocked = function () {
+                        reject(new Error('Unable to drop instance because it is currently in use.'));
                     };
 
                     req.onsuccess = function () {
