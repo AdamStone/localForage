@@ -90,7 +90,7 @@ var REJECTED = ['REJECTED'];
 var FULFILLED = ['FULFILLED'];
 var PENDING = ['PENDING'];
 
-module.exports = exports = Promise;
+module.exports = Promise;
 
 function Promise(resolver) {
   if (typeof resolver !== 'function') {
@@ -196,7 +196,7 @@ handlers.reject = function (self, error) {
 function getThen(obj) {
   // Make sure we only access the accessor once as required by the spec
   var then = obj && obj.then;
-  if (obj && typeof obj === 'object' && typeof then === 'function') {
+  if (obj && (typeof obj === 'object' || typeof obj === 'function') && typeof then === 'function') {
     return function appyThen() {
       then.apply(obj, arguments);
     };
@@ -244,7 +244,7 @@ function tryCatch(func, value) {
   return out;
 }
 
-exports.resolve = resolve;
+Promise.resolve = resolve;
 function resolve(value) {
   if (value instanceof this) {
     return value;
@@ -252,13 +252,13 @@ function resolve(value) {
   return handlers.resolve(new this(INTERNAL), value);
 }
 
-exports.reject = reject;
+Promise.reject = reject;
 function reject(reason) {
   var promise = new this(INTERNAL);
   return handlers.reject(promise, reason);
 }
 
-exports.all = all;
+Promise.all = all;
 function all(iterable) {
   var self = this;
   if (Object.prototype.toString.call(iterable) !== '[object Array]') {
@@ -297,7 +297,7 @@ function all(iterable) {
   }
 }
 
-exports.race = race;
+Promise.race = race;
 function race(iterable) {
   var self = this;
   if (Object.prototype.toString.call(iterable) !== '[object Array]') {
@@ -646,7 +646,25 @@ function _getConnection(dbInfo, upgradeNeeded) {
         };
 
         openreq.onsuccess = function () {
-            resolve(openreq.result);
+            var db = openreq.result;
+            db.onversionchange = function (e) {
+                // Triggered when the database is modified (e.g. adding an objectStore) or
+                // deleted (even when initiated by other sessions in different tabs).
+                // Closing the connection here prevents those operations from being blocked.
+                // If the database is accessed again later by this instance, the connection
+                // will be reopened or the database recreated as needed.
+                var db = e.target;
+                var dbContext = dbContexts[db.name];
+                var forages = dbContext.forages;
+
+                db.close();
+                for (var i = 0; i < forages.length; i++) {
+                    var forage = forages[i];
+                    forage._dbInfo.db = null;
+                    forage._dbInfo.version = e.newVersion;
+                }
+            };
+            resolve(db);
             _advanceReadiness(dbInfo);
         };
     });
@@ -1322,12 +1340,18 @@ function dropInstance(options, callback) {
                 var dropDBPromise = new Promise$1(function (resolve, reject) {
                     var req = idb.deleteDatabase(options.name);
 
-                    req.onerror = req.onblocked = function (err) {
+                    req.onerror = function () {
                         var db = req.result;
                         if (db) {
                             db.close();
                         }
-                        reject(err);
+                        reject(req.error);
+                    };
+
+                    req.onblocked = function () {
+                        // Closing all open connections in onversionchange handler should prevent this situation, but if
+                        // we do get here, it just means the request remains pending - eventually it will succeed or error
+                        console.warn('dropInstance blocked for database "' + options.name + '" until all open connections are closed');
                     };
 
                     req.onsuccess = function () {
