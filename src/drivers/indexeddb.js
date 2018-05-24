@@ -198,14 +198,23 @@ function _getConnection(dbInfo, upgradeNeeded) {
         };
 
         openreq.onsuccess = function() {
-            var db = openreq.result;
+            let db = openreq.result;
             db.onversionchange = function(e) {
                 // Triggered when the database is modified (e.g. adding an objectStore) or
                 // deleted (even when initiated by other sessions in different tabs).
                 // Closing the connection here prevents those operations from being blocked.
                 // If the database is accessed again later by this instance, the connection
                 // will be reopened or the database recreated as needed.
-                e.target.close();
+                let db = e.target;
+                const dbContext = dbContexts[db.name];
+                const forages = dbContext.forages;
+
+                db.close();
+                for (let i = 0; i < forages.length; i++) {
+                    const forage = forages[i];
+                    forage._dbInfo.db = null;
+                    forage._dbInfo.version = e.newVersion;
+                }
             };
             resolve(db);
             _advanceReadiness(dbInfo);
