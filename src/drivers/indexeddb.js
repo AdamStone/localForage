@@ -206,14 +206,17 @@ function _getConnection(dbInfo, upgradeNeeded) {
                 // If the database is accessed again later by this instance, the connection
                 // will be reopened or the database recreated as needed.
                 let db = e.target;
-                const dbContext = dbContexts[db.name];
-                const forages = dbContext.forages;
-
                 db.close();
-                for (let i = 0; i < forages.length; i++) {
-                    const forage = forages[i];
-                    forage._dbInfo.db = null;
-                    forage._dbInfo.version = e.newVersion;
+
+                // If it is an upgrade, update the version number of the associated dbInfo
+                if (e.newVersion !== null) {
+                    const dbContext = dbContexts[db.name];
+                    const forages = dbContext.forages;
+
+                    for (let i = 0; i < forages.length; i++) {
+                        const forage = forages[i];
+                        forage._dbInfo.version = e.newVersion;
+                    }
                 }
             };
             resolve(db);
