@@ -654,14 +654,17 @@ function _getConnection(dbInfo, upgradeNeeded) {
                 // If the database is accessed again later by this instance, the connection
                 // will be reopened or the database recreated as needed.
                 var db = e.target;
-                var dbContext = dbContexts[db.name];
-                var forages = dbContext.forages;
-
                 db.close();
-                for (var i = 0; i < forages.length; i++) {
-                    var forage = forages[i];
-                    forage._dbInfo.db = null;
-                    forage._dbInfo.version = e.newVersion;
+
+                // If it is an upgrade, update the version number of the associated dbInfo
+                if (e.newVersion !== null) {
+                    var dbContext = dbContexts[db.name];
+                    var forages = dbContext.forages;
+
+                    for (var i = 0; i < forages.length; i++) {
+                        var forage = forages[i];
+                        forage._dbInfo.version = e.newVersion;
+                    }
                 }
             };
             resolve(db);
